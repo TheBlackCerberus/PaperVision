@@ -3,19 +3,20 @@ import numpy as np
 import torch.nn as nn
 
 
-
-
 class BasicResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, downsample=None):
+    expansion = 1
+    def __init__(self, in_channels, out_channels, downsample=None, stride=1):
         super().__init__()
+        self.expansion = 1
         
-        self.conv3x3_1  = nn.Conv2d(in_channels=in_channels, out_channels=out_channels,kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv3x3_1  = nn.Conv2d(in_channels=in_channels, out_channels=out_channels,kernel_size=3, stride=stride, padding=1, bias=False)
         self.batch_norm_1 = nn.BatchNorm2d(out_channels)
         self.relu_1 = nn.ReLU(inplace=True)
-        self.conv3x3_2 = nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv3x3_2 = nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
         self.batch_norm_2 = nn.BatchNorm2d(inplace=True)
 
         self.downsample = downsample
+        self.stride = stride
 
     def forward(self, x) -> torch.Tensor:
 
@@ -45,18 +46,21 @@ class BasicResidualBlock(nn.Module):
         return out 
 
 class BottleNeck(nn.Module):
-    def __init__(self, in_channels, out_channels, downsample=None):
+    expansion = 4
+    def __init__(self, in_channels, out_channels, downsample=None, stride=1):
         super().__init__()
-        self.expansion: int = 4
-
+        self.expansion = 4
 
         self.conv1x1_1  = nn.Conv2d(in_channels=in_channels, out_channels=out_channels,kernel_size=1, stride=1, padding=0, bias=False)
         self.batch_norm_1 = nn.BatchNorm2d(out_channels)
-        self.conv3x3_1 = nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1, bias=False)
-        self.batch_norm_2 = nn.BatchNorm2d(inplace=True)
-        self.conv1x1_2  = nn.Conv2d(in_channels=in_channels, out_channels=out_channels*self.expansion,kernel_size=1, stride=1, padding=1, bias=False)
+        self.conv3x3_1 = nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.batch_norm_2 = nn.BatchNorm2d(out_channels)
+        self.conv1x1_2  = nn.Conv2d(in_channels=out_channels, out_channels=out_channels*self.expansion,kernel_size=1, stride=1, padding=0, bias=False)
         self.batch_norm_3 = nn.BatchNorm2d(out_channels*self.expansion) 
         self.relu = nn.ReLU(inplace=True)
+
+        self.downsample = downsample
+        self.stride = stride
 
     def forward(self, x) -> torch.Tensor:
 
@@ -77,8 +81,7 @@ class BottleNeck(nn.Module):
         if self.downsample is not None:
             identity = self.downsample(x)
 
-
-        out = out + identity
+        out += identity
         out = self.relu(out)
         return out 
 
@@ -86,6 +89,7 @@ class BottleNeck(nn.Module):
 class ResNet(nn.Module):
     def __init__(self, BasicResidualBlock, layer_list, num_classes, num_channels=3):
         super().__init__()
+        self.in_channels = 64
     
         self.conv1 = nn.Conv2d(in_channels=num_channels, out_channels=64, kernel_size=7, stride=2, padding=3, bias=False)
         self.batch_norm1 = nn.BatchNorm2d(64)
@@ -120,7 +124,7 @@ class ResNet(nn.Module):
             
         return nn.Sequential(*layers)
 
-    def forward(self, x):
+    def forward(self, x) -> torch.Tensor:
         out = self.conv1(x)
         out = self.batch_norm1(out)
         out = self.relu(out)
@@ -145,3 +149,5 @@ def ResNet101(num_classes, channels=3):
 
 def ResNet152(num_classes, channels=3):
     return ResNet(BottleNeck, [3,8,36,3], num_classes, channels)
+
+
